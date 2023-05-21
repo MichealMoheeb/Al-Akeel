@@ -7,9 +7,13 @@ import jakarta.persistence.*;
 import java.io.Serializable;
 
 @Entity
+@Table(uniqueConstraints = {@UniqueConstraint(columnNames = {"name", "restaurant_id"})})
 public class Meal implements Serializable {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private long id;
+
     private String name;
 
     private double price;
@@ -19,6 +23,7 @@ public class Meal implements Serializable {
     private AkeelOrder akeelOrder;
 
     @ManyToOne
+    @JoinColumn(name = "restaurant_id")
     @JsonIgnore
     private Restaurant restaurant;
 
@@ -52,5 +57,13 @@ public class Meal implements Serializable {
 
     public void setRestaurant(Restaurant restaurant) {
         this.restaurant = restaurant;
+    }
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
     }
 }

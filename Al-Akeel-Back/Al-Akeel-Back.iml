@@ -7,7 +7,7 @@
         <setting name="provider-name" value="Hibernate" />
         <datasource-mapping>
           <factory-entry name="Al-Akeel-Back" value="022279aa-d0d0-4fc9-9c9d-8a1953bd1776" />
-          <factory-entry name="default" value="63567c80-16d2-4b44-a130-1ca911eb9a9f" />
+          <factory-entry name="default" />
         </datasource-mapping>
         <naming-strategy-map>
           <unit-entry name="default" />

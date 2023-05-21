@@ -6,9 +6,13 @@ import entities.Restaurant;
 import entities.User;
 import jakarta.ejb.Stateless;
 import jakarta.json.Json;
+import jakarta.json.JsonObject;
 import jakarta.persistence.*;
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Response;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Stateless
@@ -27,6 +31,7 @@ public class RestaurantOwnerBean {
     @POST
     @Path("/login")
     public User login(User owner) {
+        this.restaurant = null;
         Query query = em.createQuery("SELECT u FROM User u WHERE u.username='" + owner.getUsername() + "' AND u.password='" + owner.getPassword() + "'");
         if (query.getResultList().isEmpty())
             return null;
@@ -46,20 +51,61 @@ public class RestaurantOwnerBean {
     @Path("/signup")
     public Object signup(User owner) {
         owner.setRole(User.UserRole.RESTAURANT_OWNER);
-        em.persist(owner);
+        try {
+            em.persist(owner);
+        } catch (Exception e) {
+            JsonObject json = Json.createObjectBuilder().add("message", "This user already exists").build();
+            return Response.status(Response.Status.UNAUTHORIZED).entity(json).build();
+        }
         return owner;
     }
 
+    // add meal to restaurant for frontend
+    @POST
+    @Path("/add-meal")
+    public Object addMealToRest(Meal meal) {
+        try {
+            meal.setRestaurant(this.restaurant);
+            this.restaurant.addMeal(meal);
+            em.merge(meal);
+        } catch (Exception e) {
+            JsonObject json = Json.createObjectBuilder().add("message", "meal already exists").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
+        }
+        return Json.createObjectBuilder().add("message", "Meal added successfully").build();
+    }
+
+    // remove meal from restaurant for frontend
+    @DELETE
+    @Path("/remove-meal/{id}")
+    public Object removeMealFromRest(@PathParam("id") long id) {
+        Meal meal = em.find(Meal.class, id);
+        if (meal == null) {
+            JsonObject json = Json.createObjectBuilder().add("message", "meal not found").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
+        }
+        this.restaurant.getMeals().remove(meal);
+        this.restaurant.setMeals(this.restaurant.getMeals());
+        em.remove(meal);
+        return Json.createObjectBuilder().add("message", "Meal removed successfully").build();
+    }
 
     // create a restaurant entity in the db by providing the name in a json object
     @POST
     @Path("/create")
     public Object createRestaurant(Restaurant restaurant) {
         if (this.restaurant != null) {
-            return Json.createObjectBuilder().add("message", "restaurant was created previously").build();
+            JsonObject json = Json.createObjectBuilder().add("message", "restaurant was created previously").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
         }
         restaurant.setOwnerId(owner.getId());
-        em.persist(restaurant);
+        restaurant.setMeals(new ArrayList<>());
+        try {
+            em.persist(restaurant);
+        } catch (Exception e) {
+            JsonObject json = Json.createObjectBuilder().add("message", "This restaurant already exists").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
+        }
         this.restaurant = restaurant;
         return restaurant;
     }
@@ -69,17 +115,23 @@ public class RestaurantOwnerBean {
     @Path("/menu")
     public Object createRestaurantMenu(List<Meal> meals) {
         if (this.restaurant == null) {
-            return Json.createObjectBuilder().add("message", "restaurant not created").build();
+            JsonObject json = Json.createObjectBuilder().add("message", "restaurant not created").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
         }
-        if (this.restaurant.getMeals() != null) {
-            return Json.createObjectBuilder().add("message", "menu was created previously").build();
+        if (!this.restaurant.getMeals().isEmpty()) {
+            JsonObject json = Json.createObjectBuilder().add("message", "menu was created previously").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
         }
         for (Meal meal:meals) {
             meal.setRestaurant(this.restaurant);
-            em.persist(meal);
+            try {
+                em.persist(meal);
+            } catch (Exception e) {
+                JsonObject json = Json.createObjectBuilder().add("message", "Can't add more than one object with the same name").build();
+                return Response.status(Response.Status.CONFLICT).entity(json).build();
+            }
         }
         this.restaurant.setMeals(meals);
-        em.merge(this.restaurant);
         return Json.createObjectBuilder().add("message", "menu created successfully").build();
     }
 
@@ -88,24 +140,20 @@ public class RestaurantOwnerBean {
     @Path("/edit")
     public Object editRestaurant(List<Meal> meals) {
         if (this.restaurant == null) {
-            return Json.createObjectBuilder().add("message", "restaurant not created").build();
+            JsonObject json = Json.createObjectBuilder().add("message", "restaurant not created").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
         }
         for (Meal meal: this.restaurant.getMeals()) {
-            meal.setRestaurant(null);
-            em.merge(meal);
+            this.removeMealFromRest(meal.getId());
         }
-        this.restaurant.setMeals(null);
-        em.merge(this.restaurant);
         if(meals != null) {
             for (Meal meal : meals) {
-                meal.setRestaurant(this.restaurant);
-                em.merge(meal);
+                this.addMealToRest(meal);
             }
-            this.restaurant.setMeals(meals);
         } else {
-            return Json.createObjectBuilder().add("message", "You should create a menu first").build();
+            JsonObject json = Json.createObjectBuilder().add("message", "You should create a menu first").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
         }
-        em.merge(this.restaurant);
         return Json.createObjectBuilder().add("message", "Restaurant edited successfully").build();
     }
 
@@ -113,7 +161,7 @@ public class RestaurantOwnerBean {
     @GET
     @Path("/get-restaurant/{id}")
     public Restaurant getRestaurantById(@PathParam("id") int id) {
-        Query query = em.createQuery("SELECT c FROM Restaurant c JOIN FETCH c.meals WHERE c.id=" + id);
+        Query query = em.createQuery("SELECT c FROM Restaurant c WHERE c.id=" + id);
         if (query.getResultList().isEmpty())
             return null;
         return (Restaurant) query.getSingleResult();
@@ -146,9 +194,9 @@ public class RestaurantOwnerBean {
         }
         return Json.createObjectBuilder()
                 .add("Restaurant", restaurantName)
-                .add("Total earnings", sum)
-                .add("Completed orders", completed)
-                .add("Canceled orders", canceled)
+                .add("Total_earnings", sum)
+                .add("Completed_orders", completed)
+                .add("Canceled_orders", canceled)
                 .build();
     }
 

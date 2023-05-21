@@ -6,10 +6,14 @@ import entities.User;
 import jakarta.ejb.EJB;
 import jakarta.ejb.Stateless;
 import jakarta.json.Json;
+import jakarta.json.JsonObject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Response;
+
+import java.util.List;
 
 @Stateless
 @Path("/runner")
@@ -44,7 +48,12 @@ public class RunnerBean {
         runner.setStatus(Runner.RunnerStatus.AVAILABLE);
         runner.setRole(User.UserRole.RUNNER);
         runner.setNumberOfTrips(0);
-        em.persist(runner);
+        try {
+            em.persist(runner);
+        } catch (Exception e) {
+            JsonObject json = Json.createObjectBuilder().add("message", "This user already exists").build();
+            return Response.status(Response.Status.UNAUTHORIZED).entity(json).build();
+        }
         return runner;
     }
 
@@ -52,8 +61,10 @@ public class RunnerBean {
     @Path("/complete/{id}")
     public Object completeOrder(@PathParam("id") long id) {
         AkeelOrder order = em.find(AkeelOrder.class, id);
-        if (order.getOrderStatus().equals(AkeelOrder.OrderStatus.CANCELED))
-            return Json.createObjectBuilder().add("message", "Order is cancelled").build();
+        if (order.getOrderStatus().equals(AkeelOrder.OrderStatus.CANCELED)){
+            JsonObject json = Json.createObjectBuilder().add("message", "Order is cancelled").build();
+            return Response.status(Response.Status.CONFLICT).entity(json).build();
+        }
         order.setOrderStatus(AkeelOrder.OrderStatus.DELIVERED);
         this.runner.setStatus(Runner.RunnerStatus.AVAILABLE);
         this.runner.setNumberOfTrips(this.runner.getNumberOfTrips()+1);
@@ -67,5 +78,14 @@ public class RunnerBean {
     public int getTrips(@PathParam("id") long id) {
         Runner runner1 = em.find(Runner.class, id);
         return runner1.getNumberOfTrips();
+    }
+
+    @GET
+    @Path("/getRunnerOrder/{id}")
+    public List<AkeelOrder> getRunnerOrders(@PathParam("id") long id) {
+        //get all orders
+        //get order with runner id
+        List<AkeelOrder> runnerOrders = em.createQuery("SELECT o FROM AkeelOrder o WHERE o.runner.id = " + id).getResultList();
+        return runnerOrders;
     }
 }

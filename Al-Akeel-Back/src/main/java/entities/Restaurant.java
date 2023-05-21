@@ -20,7 +20,7 @@ public class Restaurant implements Serializable {
 
     private long ownerId;
 
-    @OneToMany(mappedBy = "restaurant", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "restaurant", fetch = FetchType.EAGER, orphanRemoval = true)
     private Collection<Meal> meals;
 
     public long getId() {
@@ -56,4 +56,6 @@ public class Restaurant implements Serializable {
     }
 
     public void addMeal (Meal meal) { this.meals.add(meal); }
+
+    public void removeMeal (Meal meal) { this.meals.remove(meal); }
 }

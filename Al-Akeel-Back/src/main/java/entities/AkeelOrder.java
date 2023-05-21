@@ -20,15 +20,20 @@ public class AkeelOrder implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
+    @OneToMany(mappedBy = "akeelOrder", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    private Collection<Meal> items;
+
     private double totalPrice;
 
     private String date;
 
     private double deliveryFee;
 
+    private long customerId;
+
     @OneToOne
     private Runner runner;
-    
+
     @ManyToOne
     private Restaurant restaurant;
 
@@ -41,6 +46,14 @@ public class AkeelOrder implements Serializable {
 
     public void setId(long id) {
         this.id = id;
+    }
+
+    public Collection<Meal> getItems() {
+        return items;
+    }
+
+    public void setItems(Collection<Meal> items) {
+        this.items = items;
     }
 
     public double getTotalPrice() {
@@ -57,6 +70,14 @@ public class AkeelOrder implements Serializable {
 
     public void setRunner(Runner runner) {
         this.runner = runner;
+    }
+
+    public Restaurant getRestaurant() {
+        return restaurant;
+    }
+
+    public void setRestaurant(Restaurant restaurant) {
+        this.restaurant = restaurant;
     }
 
     public OrderStatus getOrderStatus() {
@@ -83,4 +104,11 @@ public class AkeelOrder implements Serializable {
         this.deliveryFee = deliveryFee;
     }
 
+    public long getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(long customerId) {
+        this.customerId = customerId;
+    }
 }
